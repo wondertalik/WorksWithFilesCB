@@ -26,7 +26,7 @@ $wfm->addFieldOne('f7251');
 $wfm->addFieldOne('f7261');
 $wfm->addFieldOne('f7271');
 //указываем что копируем из строки с айди 71
-$wfm->setLineID(1);
+$wfm->setLineID(71);
 
 //Копируем файлы (добавление файлов к уже существующим)
 $wfm->copyAllFiles(55, 'f7281', 1);
