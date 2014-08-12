@@ -45,46 +45,31 @@ class WorksWithFilesCB
         $fields = $this->getFieldsSource();
 
         if (count($fields)) {
-
-            //Получаем список файлов в поле назначения
-            $result = data_select_field($destTableID, $destFieldName, "`id` = ", $destLineID);
-            if (sql_num_rows($result)) {
-                $destRow = sql_fetch_assoc($result);
-                $destFieldID = substr($destFieldName, 1);
-                //Парсим перечень файлов.
-                if (strlen(trim($destRow[$destFieldName])))
-                    $listFiles = explode("\r\n", $destRow[$destFieldName]);
-            } else {
-                throw new Exception("Не удалось найти запись с ID " . $destLineID . " в таблице " . $destTableID);
-            }
-
+            //Получаем список уже существующих файлов в строке назначения
+            $listFiles = $this->explodeFiles($destTableID, $destFieldName, $destLineID);
+            $destFieldID = substr($destFieldName, 1);
 
             foreach ($fields as $value) {
                 $nameField = $value['field'];
                 $fieldID = substr($nameField, 1);
-                //Находим строку назначения
-                $result = data_select_field($this->tableID, $nameField, "`id` = ", $this->lineID);
 
-                //Если была найдена строка
-                if (sql_num_rows($result) > 0) {
-                    $row = sql_fetch_assoc($result);
+                //Получаем список файлов которые необходимо копировать
+                $files = $this->explodeFiles($this->tableID, $nameField, $this->lineID);
 
-                    $files = explode("\r\n", $row[$nameField]);
-
-                    foreach ($files as $file) {
-                        //Путь к файлу источнику
-                        $file_path_old = $this->getFilePath($fieldID, $this->lineID, $file);
-                        //Путь к файлу назначения
-                        $file_path_new = $this->getFilePath(substr($destFieldName, 1), $destLineID, $file);
-                        //Создаем необходимую структуру директорий
-                        create_data_file_dirs($destFieldID, $destLineID, $file);
-                        //Копируем файл
-                        if (copy($file_path_old, $file_path_new)) {
-                            //дополняем список
-                            $listFiles[] = $file;
-                        }
+                foreach ($files as $file) {
+                    //Путь к файлу источнику
+                    $file_path_old = $this->getFilePath($fieldID, $this->lineID, $file);
+                    //Путь к файлу назначения
+                    $file_path_new = $this->getFilePath(substr($destFieldName, 1), $destLineID, $file);
+                    //Создаем необходимую структуру директорий
+                    create_data_file_dirs($destFieldID, $destLineID, $file);
+                    //Копируем файл
+                    if (copy($file_path_old, $file_path_new)) {
+                        //дополняем список
+                        $listFiles[] = $file;
                     }
                 }
+
             }
 
             $upd[$destFieldName] = implode("\r\n", $listFiles);
@@ -93,7 +78,55 @@ class WorksWithFilesCB
             throw new Exception("Необходимо указать поле, из которого будет производится копирование");
         }
 
+    }
 
+    /**
+     * Возвращает список файлов которые находятся в поле
+     *
+     * @param int $tableID
+     * @param string $fieldName
+     * @param int $lineID
+     * @return array
+     * @throws Exception
+     */
+    protected function explodeFiles($tableID, $fieldName, $lineID)
+    {
+        //Получаем список файлов в поле назначения
+        $result = data_select_field($tableID, $fieldName, "`id` = ", $lineID, " LIMIT 1");
+        if (sql_num_rows($result)) {
+            $row = sql_fetch_assoc($result);
+
+            //Парсим перечень файлов.
+            if (strlen(trim($row[$fieldName])))
+                return explode("\r\n", $row[$fieldName]);
+            else
+                return array();
+        } else {
+            throw new Exception("В поле " . $fieldName . " не удалось найти запись с ID " . $lineID . " в таблице " . $tableID);
+        }
+    }
+
+    /**
+     * @param $tableID
+     * @param $fieldName
+     * @param $lineID
+     */
+    protected function delFilesInFields($tableID, $fieldName, $lineID)
+    {
+        $fieldID = substr($fieldName, 1);
+        $result = data_select_field($tableID, $fieldName, "`id` = ", $lineID);
+
+        //Если была найдена строка
+        if (sql_num_rows($result) > 0) {
+            $row = sql_fetch_assoc($result);
+
+            $files = explode("\r\n", $row[$fieldName]);
+            foreach ($files as $file) {
+                $file_path = $this->getFilePath($fieldID, $lineID, $file);
+                @unlink($file_path);
+            }
+            data_update($tableID, array($fieldName => ''), "`id` = ", $lineID);
+        }
     }
 
     public function clear()
@@ -150,30 +183,6 @@ class WorksWithFilesCB
     public function getFieldsSource()
     {
         return $this->fieldsSource;
-    }
-
-
-    /**
-     * @param $destTableID
-     * @param $destFieldName
-     * @param $destLineID
-     */
-    protected function delFilesInFields($destTableID, $destFieldName, $destLineID)
-    {
-        $fieldID = substr($destFieldName, 1);
-        $result = data_select_field($destTableID, $destFieldName, "`id` = ", $destLineID);
-
-        //Если была найдена строка
-        if (sql_num_rows($result) > 0) {
-            $row = sql_fetch_assoc($result);
-
-            $files = explode("\n", $row[$destFieldName]);
-            foreach ($files as $file) {
-                $file_path = $this->getFilePath($fieldID, $destLineID, $file);
-                @unlink($file_path);
-            }
-            data_update($destTableID, array($destFieldName => ''), "`id` = ", $destLineID);
-        }
     }
 
     /**
