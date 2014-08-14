@@ -57,10 +57,11 @@ class WorksWithFilesCB
                 $files = $this->explodeFiles($this->tableID, $nameField, $this->lineID);
 
                 foreach ($files as $file) {
+                    $destFieldID = substr($destFieldName, 1);
                     //Путь к файлу источнику
                     $file_path_old = $this->getFilePath($fieldID, $this->lineID, $file);
                     //Путь к файлу назначения
-                    $file_path_new = $this->getFilePath(substr($destFieldName, 1), $destLineID, $file);
+                    $file_path_new = $this->getFilePath($destFieldID, $destLineID, $file);
                     //Создаем необходимую структуру директорий
                     create_data_file_dirs($destFieldID, $destLineID, $file);
                     //Копируем файл
